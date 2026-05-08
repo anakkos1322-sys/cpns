@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  PARTICIPANT
+}
+
+enum CategoryCode {
+  TWK
+  TIU
+  TKP
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String
+  email          String        @unique
+  passwordHash   String
+  role           UserRole      @default(PARTICIPANT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  examSessions   ExamSession[]
+  results        Result[]
+
+  @@map("users")
+}
+
+model Category {
+  id           String       @id @default(cuid())
+  code         CategoryCode @unique
+  name         String
+  passingGrade Int
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  questions    Question[]
+
+  @@map("categories")
+}
+
+model Question {
+  id          String                @id @default(cuid())
+  categoryId  String
+  body        String                @db.Text
+  explanation String?               @db.Text
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  category    Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options     QuestionOption[]
+  answers     Answer[]
+  sessions    ExamSessionQuestion[]
+
+  @@index([categoryId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  label      String
+  content    String   @db.Text
+  isCorrect  Boolean  @default(false)
+  sortOrder  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers    Answer[]
+
+  @@index([questionId])
+  @@unique([questionId, label])
+  @@map("question_options")
+}
+
+model Exam {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?       @db.Text
+  durationMinutes Int           @default(100)
+  twkCount        Int           @default(30)
+  tiuCount        Int           @default(35)
+  tkpCount        Int           @default(45)
+  status          ExamStatus    @default(PUBLISHED)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  sessions        ExamSession[]
+
+  @@map("exams")
+}
+
+model ExamSession {
+  id               String                @id @default(cuid())
+  examId           String
+  userId           String
+  startedAt        DateTime              @default(now())
+  expiresAt        DateTime
+  submittedAt      DateTime?
+  autoSubmittedAt  DateTime?
+  status           SessionStatus         @default(IN_PROGRESS)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  exam             Exam                  @relation(fields: [examId], references: [id], onDelete: Restrict)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionQuestions ExamSessionQuestion[]
+  answers          Answer[]
+  result           Result?
+
+  @@index([userId, status])
+  @@index([examId])
+  @@map("exam_sessions")
+}
+
+model ExamSessionQuestion {
+  id            String        @id @default(cuid())
+  examSessionId String
+  questionId    String
+  orderIndex    Int
+  optionOrder   Json
+  categoryCode  CategoryCode
+  createdAt     DateTime      @default(now())
+  examSession   ExamSession   @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  question      Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examSessionId, orderIndex])
+  @@unique([examSessionId, questionId])
+  @@index([examSessionId])
+  @@map("exam_session_questions")
+}
+
+model Answer {
+  id               String          @id @default(cuid())
+  examSessionId    String
+  questionId       String
+  selectedOptionId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  examSession      ExamSession     @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  question         Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption   QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@unique([examSessionId, questionId])
+  @@index([questionId])
+  @@map("answers")
+}
+
+model Result {
+  id            String      @id @default(cuid())
+  examSessionId String      @unique
+  userId        String
+  scoreTWK      Int
+  scoreTIU      Int
+  scoreTKP      Int
+  totalScore    Int
+  passed        Boolean
+  passingGrade  Json
+  summary       Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  examSession   ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("results")
+}
