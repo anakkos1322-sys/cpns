@@ -1,9 +1,26 @@
 import { CategoryCode, ExamStatus, Prisma, SessionStatus } from "@prisma/client"
-import { EXAM_BLUEPRINT, EXAM_DURATION_MINUTES, PASSING_GRADES } from "@/lib/constants"
+import { EXAM_DURATION_MINUTES, PASSING_GRADES } from "@/lib/constants"
 import { requireUser } from "@/lib/auth"
+import { sanitizeQuestionBody } from "@/lib/helpers/question"
 import { evaluateScores } from "@/lib/helpers/score"
-import { sampleSize, shuffleArray } from "@/lib/helpers/randomizer"
+import { shuffleArray } from "@/lib/helpers/randomizer"
 import { prisma } from "@/lib/prisma"
+
+interface LoadedQuestion {
+  id: string
+  subtopic: string
+  body: string
+  explanation: string | null
+  category: { code: CategoryCode }
+  options: { id: string; label: string; content: string }[]
+}
+
+interface SubtopicCountRow {
+  subtopic: string
+  _count: {
+    _all: number
+  }
+}
 
 function toExpiryDate() {
   return new Date(Date.now() + EXAM_DURATION_MINUTES * 60 * 1000)
@@ -30,21 +47,118 @@ async function getExam(examId?: string) {
   return exam
 }
 
-async function loadQuestionsByCategory() {
+function allocateCountsBySubtopic(rows: SubtopicCountRow[], targetCount: number) {
+  const totalAvailable = rows.reduce((sum, row) => sum + row._count._all, 0)
+  if (totalAvailable < targetCount) {
+    throw new Error(`Soal tidak cukup. Dibutuhkan ${targetCount}, tersedia ${totalAvailable}.`)
+  }
+
+  const shuffledRows = shuffleArray(rows)
+  const allocation = new Map<string, number>()
+  let remaining = targetCount
+
+  for (const row of shuffledRows) {
+    if (remaining === 0) {
+      break
+    }
+
+    allocation.set(row.subtopic, 1)
+    remaining -= 1
+  }
+
+  while (remaining > 0) {
+    let distributed = false
+
+    for (const row of shuffleArray(shuffledRows)) {
+      const current = allocation.get(row.subtopic) ?? 0
+      if (current >= row._count._all) {
+        continue
+      }
+
+      allocation.set(row.subtopic, current + 1)
+      remaining -= 1
+      distributed = true
+
+      if (remaining === 0) {
+        break
+      }
+    }
+
+    if (!distributed) {
+      break
+    }
+  }
+
+  return shuffledRows
+    .map((row) => ({
+      subtopic: row.subtopic,
+      count: allocation.get(row.subtopic) ?? 0,
+    }))
+    .filter((row) => row.count > 0)
+}
+
+async function loadSelectedQuestionsByCategory(categoryCode: CategoryCode, count: number) {
+  const category = await prisma.category.findUnique({
+    where: { code: categoryCode },
+    select: { id: true },
+  })
+
+  if (!category) {
+    throw new Error(`Kategori ${categoryCode} tidak ditemukan.`)
+  }
+
+  const subtopics = await prisma.question.groupBy({
+    by: ["subtopic"],
+    where: { categoryId: category.id },
+    _count: { _all: true },
+  })
+
+  const plan = allocateCountsBySubtopic(subtopics as SubtopicCountRow[], count)
+
+  const pickedRows = await Promise.all(
+    plan.map(({ subtopic, count: subtopicCount }) =>
+      prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM questions
+        WHERE "categoryId" = ${category.id}
+          AND subtopic = ${subtopic}
+        ORDER BY random()
+        LIMIT ${subtopicCount}
+      `,
+    ),
+  )
+
+  const selectedIds = pickedRows.flat().map((row) => row.id)
+  if (selectedIds.length < count) {
+    throw new Error(`Soal ${categoryCode} tidak cukup untuk membentuk paket ujian.`)
+  }
+
   const questions = await prisma.question.findMany({
+    where: { id: { in: selectedIds } },
     include: {
-      category: true,
+      category: {
+        select: {
+          code: true,
+        },
+      },
       options: {
         orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          label: true,
+          content: true,
+        },
       },
     },
   })
 
-  return {
-    TWK: questions.filter((question) => question.category.code === CategoryCode.TWK),
-    TIU: questions.filter((question) => question.category.code === CategoryCode.TIU),
-    TKP: questions.filter((question) => question.category.code === CategoryCode.TKP),
-  }
+  const questionMap = new Map(questions.map((question) => [question.id, question]))
+
+  return shuffleArray(
+    selectedIds
+      .map((id) => questionMap.get(id))
+      .filter((question): question is LoadedQuestion => Boolean(question)),
+  )
 }
 
 function serializeSessionQuestion(
@@ -52,6 +166,7 @@ function serializeSessionQuestion(
     orderIndex: number
     question: {
       id: string
+      subtopic: string
       body: string
       explanation: string | null
       category: { code: CategoryCode }
@@ -73,7 +188,8 @@ function serializeSessionQuestion(
     questionId: sessionQuestion.question.id,
     orderIndex: sessionQuestion.orderIndex,
     category: sessionQuestion.question.category.code,
-    body: sessionQuestion.question.body,
+    subtopic: sessionQuestion.question.subtopic,
+    body: sanitizeQuestionBody(sessionQuestion.question.body),
     explanation: sessionQuestion.question.explanation,
     selectedOptionId: selectedOptionId ?? null,
     options: optionOrder
@@ -134,22 +250,26 @@ export async function generateExamSession(examId?: string) {
     }
   }
 
-  const grouped = await loadQuestionsByCategory()
+  const grouped = await Promise.all([
+    loadSelectedQuestionsByCategory(CategoryCode.TWK, exam.twkCount),
+    loadSelectedQuestionsByCategory(CategoryCode.TIU, exam.tiuCount),
+    loadSelectedQuestionsByCategory(CategoryCode.TKP, exam.tkpCount),
+  ])
 
-  const selectedQuestions = shuffleArray([
-    ...sampleSize(grouped.TWK, EXAM_BLUEPRINT.TWK).map((question) => ({
+  const selectedQuestions = [
+    ...grouped[0].map((question) => ({
       question,
       categoryCode: CategoryCode.TWK,
     })),
-    ...sampleSize(grouped.TIU, EXAM_BLUEPRINT.TIU).map((question) => ({
+    ...grouped[1].map((question) => ({
       question,
       categoryCode: CategoryCode.TIU,
     })),
-    ...sampleSize(grouped.TKP, EXAM_BLUEPRINT.TKP).map((question) => ({
+    ...grouped[2].map((question) => ({
       question,
       categoryCode: CategoryCode.TKP,
     })),
-  ])
+  ]
 
   const created = await prisma.examSession.create({
     data: {

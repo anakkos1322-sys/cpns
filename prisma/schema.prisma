@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserRole {
@@ -59,6 +60,7 @@ model Category {
 model Question {
   id          String                @id @default(cuid())
   categoryId  String
+  subtopic    String                @default("Umum")
   body        String                @db.Text
   explanation String?               @db.Text
   createdAt   DateTime              @default(now())
@@ -69,6 +71,7 @@ model Question {
   sessions    ExamSessionQuestion[]
 
   @@index([categoryId])
+  @@index([categoryId, subtopic])
   @@map("questions")
 }
 

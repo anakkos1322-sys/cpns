@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/auth"
 import { fromError, ok } from "@/lib/http"
-import { buildUploadPreview, importQuestions, parseExcelBuffer } from "@/lib/services/upload-service"
+import { buildUploadPreview, importQuestions, parseSpreadsheetBuffer } from "@/lib/services/upload-service"
 
 export async function POST(request: Request) {
   try {
@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     const mode = String(formData.get("mode") ?? "preview")
 
     if (!(file instanceof File)) {
-      throw new Error("File Excel wajib dipilih.")
+      throw new Error("File CSV, XLSX, atau XLS wajib dipilih.")
     }
 
-    const rows = parseExcelBuffer(await file.arrayBuffer())
+    const rows = parseSpreadsheetBuffer(await file.arrayBuffer())
     const preview = buildUploadPreview(rows)
 
     if (mode === "import") {

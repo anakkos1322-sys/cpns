@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Grid3X3, LogIn, Save, X } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Grid3X3, History, LogIn, Save, X } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/hooks/use-auth"
 import { useExamSession } from "@/hooks/use-exam-session"
 import { cn } from "@/lib/utils"
@@ -18,20 +21,28 @@ function formatTime(seconds: number) {
   return [hours, minutes, secs].map((item) => String(item).padStart(2, "0")).join(":")
 }
 
+const CATEGORY_LABELS = {
+  TWK: "Tes Wawasan Kebangsaan",
+  TIU: "Tes Intelegensi Umum",
+  TKP: "Tes Karakteristik Pribadi",
+} as const
+
 export default function TestPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const { session, loading, saving, answeredCount, startExam, updateAnswer, finishExam } =
+  const { session, loading, loadingProgress, saving, answeredCount, startExam, updateAnswer, finishExam } =
     useExamSession()
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [secondsLeft, setSecondsLeft] = useState(0)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
   const [showConfirmEnd, setShowConfirmEnd] = useState(false)
   const [showNavGrid, setShowNavGrid] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoNextEnabled, setAutoNextEnabled] = useState(true)
 
   useEffect(() => {
     if (!session?.expiresAt) {
+      setSecondsLeft(null)
       return
     }
 
@@ -49,7 +60,7 @@ export default function TestPage() {
   }, [session?.expiresAt])
 
   useEffect(() => {
-    if (secondsLeft !== 0 || !session || submitting) {
+    if (secondsLeft === null || secondsLeft !== 0 || !session || submitting) {
       return
     }
 
@@ -68,6 +79,10 @@ export default function TestPage() {
 
   const currentQuestion = session?.questions[currentIndex] ?? null
   const totalQuestions = session?.questions.length ?? 0
+  const previousQuestion = currentIndex > 0 ? session?.questions[currentIndex - 1] ?? null : null
+  const isCategoryStart = Boolean(
+    currentQuestion && (!previousQuestion || previousQuestion.category !== currentQuestion.category),
+  )
 
   const categoryStats = useMemo(() => {
     const items = session?.questions ?? []
@@ -88,6 +103,15 @@ export default function TestPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    })
+    router.push("/")
+    router.refresh()
   }
 
   if (authLoading) {
@@ -152,9 +176,26 @@ export default function TestPage() {
                 </div>
               </div>
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
-              <Button onClick={() => void startExam()} size="lg" disabled={loading}>
-                {loading ? "Menyiapkan soal..." : "Mulai Tes"}
-              </Button>
+              {loading ? (
+                <div className="mx-auto w-full max-w-md space-y-3 text-left">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Menyiapkan soal dan mengacak subtopik...</span>
+                    <span className="font-semibold text-primary">{loadingProgress}%</span>
+                  </div>
+                  <Progress value={loadingProgress} className="h-3" />
+                </div>
+              ) : null}
+              <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                <Button onClick={() => void startExam()} size="lg" disabled={loading}>
+                  {loading ? "Menyiapkan soal..." : "Mulai Tes"}
+                </Button>
+                <Button asChild variant="outline" size="lg" disabled={loading}>
+                  <Link href="/my-results">
+                    <History className="h-4 w-4 mr-2" />
+                    Riwayat Nilai
+                  </Link>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -174,10 +215,15 @@ export default function TestPage() {
             <div>
               <p className="font-semibold">Simulasi CAT CPNS</p>
               <p className="text-sm text-muted-foreground">
-                {answeredCount} dari {totalQuestions} soal terjawab
+                {user?.name ? `${user.name} · ` : ""}{answeredCount} dari {totalQuestions} soal terjawab
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {user ? (
+                <span className="hidden rounded-full bg-muted px-3 py-2 text-sm font-medium text-foreground md:inline-flex">
+                  {user.name}
+                </span>
+              ) : null}
               <div
                 className={cn(
                   "flex items-center gap-2 rounded-full px-4 py-2 font-mono font-semibold",
@@ -185,11 +231,20 @@ export default function TestPage() {
                 )}
               >
                 <Clock className="h-4 w-4" />
-                {formatTime(secondsLeft)}
+                {formatTime(secondsLeft ?? 0)}
               </div>
               <Button variant="outline" size="sm" onClick={() => setShowNavGrid(true)}>
                 <Grid3X3 className="h-4 w-4 mr-2" />
                 Navigasi
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/my-results">
+                  <History className="h-4 w-4 mr-2" />
+                  Riwayat
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void handleLogout()}>
+                Logout
               </Button>
               <Button variant="destructive" size="sm" onClick={() => setShowConfirmEnd(true)} disabled={submitting}>
                 Selesai
@@ -206,6 +261,16 @@ export default function TestPage() {
             <span>TWK: {categoryStats.TWK}</span>
             <span>TIU: {categoryStats.TIU}</span>
             <span>TKP: {categoryStats.TKP}</span>
+            <div className="ml-auto flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs">
+              <Label htmlFor="auto-next-switch" className="cursor-pointer text-xs font-medium text-foreground">
+                Auto lanjut
+              </Label>
+              <Switch
+                id="auto-next-switch"
+                checked={autoNextEnabled}
+                onCheckedChange={setAutoNextEnabled}
+              />
+            </div>
             {saving ? (
               <span className="inline-flex items-center gap-1 text-primary">
                 <Save className="h-3 w-3" />
@@ -233,6 +298,22 @@ export default function TestPage() {
             </span>
           </div>
 
+          {isCategoryStart ? (
+            <motion.div
+              key={`section-${currentQuestion.category}-${currentIndex}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-primary/20 bg-primary/5 p-4"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                Bagian {currentQuestion.category}
+              </p>
+              <p className="mt-1 text-base font-semibold text-foreground">
+                {CATEGORY_LABELS[currentQuestion.category]}
+              </p>
+            </motion.div>
+          ) : null}
+
           <Card className="border-border/50">
             <CardContent className="p-6">
               <p className="text-lg leading-relaxed">{currentQuestion.body}</p>
@@ -253,7 +334,12 @@ export default function TestPage() {
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() => void updateAnswer(currentQuestion.questionId, option.id)}
+                    onClick={() => {
+                      void updateAnswer(currentQuestion.questionId, option.id)
+                      if (autoNextEnabled) {
+                        setCurrentIndex((value) => Math.min(totalQuestions - 1, value + 1))
+                      }
+                    }}
                     className={cn(
                       "w-full rounded-2xl border-2 p-4 text-left transition-colors",
                       active ? "border-primary bg-primary/5" : "border-border hover:border-primary/40",

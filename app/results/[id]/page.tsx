@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { CheckCircle2, Clock, FileText, Home, RotateCcw, Trophy, XCircle } from "lucide-react"
+import { CheckCircle2, Clock, FileText, History, Home, RotateCcw, Trophy, XCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -152,11 +152,17 @@ export default function ResultPage() {
           </Card>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <Button asChild variant="outline">
             <Link href={`/review/${result.id}`}>
               <FileText className="h-4 w-4 mr-2" />
               Pembahasan
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/my-results">
+              <History className="h-4 w-4 mr-2" />
+              Riwayat
             </Link>
           </Button>
           <Button asChild variant="outline">

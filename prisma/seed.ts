@@ -3,6 +3,10 @@ import { hashPassword } from "../lib/auth"
 import { CATEGORY_META, EXAM_DURATION_MINUTES, EXAM_BLUEPRINT } from "../lib/constants"
 import { prisma } from "../lib/prisma"
 
+function shouldSeedDummyQuestions() {
+  return process.env.SEED_DUMMY_QUESTIONS === "true"
+}
+
 async function seedCategories() {
   for (const [code, meta] of Object.entries(CATEGORY_META)) {
     await prisma.category.upsert({
@@ -82,6 +86,7 @@ function buildDummyQuestion(index: number, code: CategoryCode) {
 
   return {
     body: `Soal ${code} ${index}: ${title}. Pilih jawaban yang paling tepat.`,
+    subtopic: "Dummy",
     explanation: `Pembahasan ${code} ${index}: opsi A dirancang sebagai jawaban benar untuk data dummy seed.`,
     options: ["Pilihan A", "Pilihan B", "Pilihan C", "Pilihan D", "Pilihan E"].map(
       (option, optionIndex) => ({
@@ -95,6 +100,10 @@ function buildDummyQuestion(index: number, code: CategoryCode) {
 }
 
 async function seedQuestions() {
+  if (!shouldSeedDummyQuestions()) {
+    return
+  }
+
   const categories = await prisma.category.findMany()
   const byCode = new Map(categories.map((category) => [category.code, category.id]))
 
@@ -121,6 +130,7 @@ async function seedQuestions() {
         data: {
           categoryId: byCode.get(code) ?? "",
           body: dummy.body,
+          subtopic: dummy.subtopic,
           explanation: dummy.explanation,
           options: {
             create: dummy.options,

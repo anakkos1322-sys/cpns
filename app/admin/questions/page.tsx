@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 interface QuestionItem {
   id: string
   body: string
+  subtopic: string
   explanation: string | null
   category: {
     code: "TWK" | "TIU" | "TKP"
@@ -71,7 +72,10 @@ export default function AdminQuestionsPage() {
           <Card key={item.id} className="border-border/50">
             <CardContent className="p-5 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{item.category.code}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{item.category.code}</span>
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{item.subtopic}</span>
+                </div>
               </div>
               <p className="font-medium leading-relaxed">{item.body}</p>
               <div className="grid gap-2">

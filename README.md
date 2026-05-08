@@ -87,6 +87,7 @@ npm run dev
 Kolom wajib:
 
 - `soal`
+- `subtopik`
 - `pilihan_a`
 - `pilihan_b`
 - `pilihan_c`
@@ -100,6 +101,12 @@ Nilai valid:
 
 - `jawaban_benar`: `A` sampai `E`
 - `kategori`: `TWK`, `TIU`, `TKP`
+
+Contoh subtopik:
+
+- `TWK`: `Sejarah Perumusan Pancasila`, `Nasionalisme dan Integrasi Bangsa`
+- `TIU`: `Aritmetika Dasar`, `Analogi Verbal`
+- `TKP`: `Kerja Sama Tim`, `Profesionalisme`
 
 ## Endpoint utama
 

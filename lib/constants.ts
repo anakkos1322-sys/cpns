@@ -19,6 +19,7 @@ export const EXAM_DURATION_MINUTES = 100
 
 export const EXCEL_HEADERS = [
   "soal",
+  "subtopik",
   "pilihan_a",
   "pilihan_b",
   "pilihan_c",

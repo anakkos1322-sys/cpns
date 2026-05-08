@@ -1,4 +1,4 @@
-import { CategoryCode, Prisma } from "@prisma/client"
+import { CategoryCode } from "@prisma/client"
 import * as XLSX from "xlsx"
 import { EXCEL_HEADERS } from "@/lib/constants"
 import { prisma } from "@/lib/prisma"
@@ -7,6 +7,7 @@ import { excelRowSchema } from "@/lib/validators/upload"
 interface ParsedRow {
   rowNumber: number
   soal: string
+  subtopik: string
   pilihan_a: string
   pilihan_b: string
   pilihan_c: string
@@ -28,11 +29,11 @@ function normalizeHeader(header: unknown) {
     .toLowerCase()
 }
 
-export function parseExcelBuffer(buffer: ArrayBuffer) {
+export function parseSpreadsheetBuffer(buffer: ArrayBuffer) {
   const workbook = XLSX.read(buffer, { type: "array" })
   const firstSheetName = workbook.SheetNames[0]
   if (!firstSheetName) {
-    throw new Error("Sheet Excel tidak ditemukan.")
+    throw new Error("Sheet file tidak ditemukan.")
   }
 
   const sheet = workbook.Sheets[firstSheetName]
@@ -45,7 +46,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer) {
   const missingHeaders = EXCEL_HEADERS.filter((header) => !headers.includes(header))
 
   if (missingHeaders.length > 0) {
-    throw new Error(`Template Excel tidak valid. Kolom kurang: ${missingHeaders.join(", ")}`)
+    throw new Error(`Template file tidak valid. Kolom kurang: ${missingHeaders.join(", ")}`)
   }
 
   return rows
@@ -59,6 +60,7 @@ export function buildUploadPreview(rows: Record<string, unknown>[]) {
 
     const candidate = {
       soal: normalized.soal,
+      subtopik: normalized.subtopik,
       pilihan_a: normalized.pilihan_a,
       pilihan_b: normalized.pilihan_b,
       pilihan_c: normalized.pilihan_c,
@@ -97,40 +99,39 @@ export async function importQuestions(preview: UploadPreviewItem[]) {
   })
   const categoryMap = new Map(categories.map((category) => [category.code, category.id]))
 
-  const batchSize = 250
+  const batchSize = 25
   let imported = 0
 
   for (let index = 0; index < validRows.length; index += batchSize) {
     const batch = validRows.slice(index, index + batchSize)
 
-    await prisma.$transaction(async (tx) => {
-      for (const row of batch) {
-        const question = await tx.question.create({
+    await Promise.all(
+      batch.map(async (row) => {
+        await prisma.question.create({
           data: {
             body: row.soal,
+            subtopic: row.subtopik,
             explanation: row.pembahasan,
             categoryId: categoryMap.get(row.kategori as CategoryCode) ?? "",
+            options: {
+              create: [
+                row.pilihan_a,
+                row.pilihan_b,
+                row.pilihan_c,
+                row.pilihan_d,
+                row.pilihan_e,
+              ].map((content, optionIndex) => ({
+                label: String.fromCharCode(65 + optionIndex),
+                content,
+                isCorrect: optionIndex === answerToIndex(row.jawaban_benar),
+                sortOrder: optionIndex,
+              })),
+            },
           },
         })
-
-        const options: Prisma.QuestionOptionCreateManyInput[] = [
-          row.pilihan_a,
-          row.pilihan_b,
-          row.pilihan_c,
-          row.pilihan_d,
-          row.pilihan_e,
-        ].map((content, optionIndex) => ({
-          questionId: question.id,
-          label: String.fromCharCode(65 + optionIndex),
-          content,
-          isCorrect: optionIndex === answerToIndex(row.jawaban_benar),
-          sortOrder: optionIndex,
-        }))
-
-        await tx.questionOption.createMany({ data: options })
         imported += 1
-      }
-    })
+      }),
+    )
   }
 
   return { imported }

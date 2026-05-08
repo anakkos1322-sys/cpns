@@ -29,11 +29,33 @@ interface SessionPayload {
 export function useExamSession() {
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
   const [saving, setSaving] = useState(false)
   const saveTimerRef = useRef<number | null>(null)
+  const progressTimerRef = useRef<number | null>(null)
 
   const startExam = useCallback(async () => {
     setLoading(true)
+    setLoadingProgress(0)
+
+    progressTimerRef.current = window.setInterval(() => {
+      setLoadingProgress((current) => {
+        if (current >= 92) {
+          return current
+        }
+
+        if (current < 40) {
+          return current + 8
+        }
+
+        if (current < 70) {
+          return current + 5
+        }
+
+        return current + 2
+      })
+    }, 350)
+
     try {
       const response = await fetch("/api/generate-exam", {
         method: "POST",
@@ -45,8 +67,13 @@ export function useExamSession() {
         throw new Error(payload.error)
       }
 
+      setLoadingProgress(100)
       setSession(payload.data as SessionPayload)
     } finally {
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current)
+        progressTimerRef.current = null
+      }
       setLoading(false)
     }
   }, [])
@@ -123,12 +150,16 @@ export function useExamSession() {
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current)
       }
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current)
+      }
     }
   }, [])
 
   return {
     session,
     loading,
+    loadingProgress,
     saving,
     answeredCount,
     startExam,

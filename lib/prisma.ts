@@ -5,6 +5,12 @@ declare global {
   var prisma: PrismaClient | undefined
 }
 
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL belum diatur. Buat file .env dari .env.example lalu isi koneksi PostgreSQL.",
+  )
+}
+
 export const prisma =
   global.prisma ??
   new PrismaClient({

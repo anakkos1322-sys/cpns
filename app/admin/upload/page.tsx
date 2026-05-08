@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 interface PreviewRow {
   rowNumber: number
   soal: string
+  subtopik: string
   jawaban_benar: string
   kategori: string
   valid: boolean
@@ -66,6 +67,7 @@ export default function UploadQuestionsPage() {
     const rows = [
       [
         "soal",
+        "subtopik",
         "pilihan_a",
         "pilihan_b",
         "pilihan_c",
@@ -77,6 +79,7 @@ export default function UploadQuestionsPage() {
       ],
       [
         "Pancasila ditetapkan sebagai dasar negara pada tanggal?",
+        "Sejarah Perumusan Pancasila",
         "18 Agustus 1945",
         "17 Agustus 1945",
         "1 Juni 1945",
@@ -85,6 +88,66 @@ export default function UploadQuestionsPage() {
         "A",
         "Penetapan dilakukan oleh PPKI pada 18 Agustus 1945.",
         "TWK",
+      ],
+      [
+        "Semboyan Bhinneka Tunggal Ika terdapat dalam kitab?",
+        "Nasionalisme dan Integrasi Bangsa",
+        "Sutasoma",
+        "Negarakertagama",
+        "Arjunawiwaha",
+        "Pararaton",
+        "Babad Tanah Jawi",
+        "A",
+        "Bhinneka Tunggal Ika dikenal dari kitab Sutasoma karya Mpu Tantular.",
+        "TWK",
+      ],
+      [
+        "Jika 4x - 6 = 18, maka nilai x adalah?",
+        "Aritmetika Dasar",
+        "6",
+        "5",
+        "7",
+        "8",
+        "4",
+        "A",
+        "4x = 24 sehingga x = 6.",
+        "TIU",
+      ],
+      [
+        "KATA : HURUF = KALIMAT : ...",
+        "Analogi Verbal",
+        "Paragraf",
+        "Bacaan",
+        "Makna",
+        "Bahasa",
+        "Buku",
+        "A",
+        "Kata tersusun dari huruf, kalimat tersusun menjadi paragraf.",
+        "TIU",
+      ],
+      [
+        "Saat target kerja mepet dan tim terlihat kewalahan, sikap yang paling tepat adalah...",
+        "Kerja Sama Tim",
+        "Menunggu instruksi atasan tanpa inisiatif",
+        "Fokus pada tugas sendiri dan mengabaikan tim",
+        "Membantu menyusun prioritas kerja tim dan menawarkan bantuan yang relevan",
+        "Meminta tenggat diundur tanpa mencoba solusi lain",
+        "Menyalahkan pembagian tugas sejak awal",
+        "C",
+        "Sikap terbaik adalah proaktif membantu tim tetap efektif dan terarah.",
+        "TKP",
+      ],
+      [
+        "Ketika menerima kritik atas hasil kerja, respons terbaik adalah...",
+        "Profesionalisme",
+        "Membela diri agar tidak disalahkan",
+        "Menerima masukan, mengevaluasi kekurangan, lalu memperbaiki hasil kerja",
+        "Diam dan tetap memakai cara lama",
+        "Menyerahkan perbaikan ke rekan kerja",
+        "Menghindari tugas serupa berikutnya",
+        "B",
+        "Respons profesional adalah terbuka pada evaluasi dan segera memperbaiki pekerjaan.",
+        "TKP",
       ],
     ]
 
@@ -103,7 +166,7 @@ export default function UploadQuestionsPage() {
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Template Excel</CardTitle>
-          <CardDescription>Gunakan kolom wajib: soal, pilihan_a sampai pilihan_e, jawaban_benar, pembahasan, kategori.</CardDescription>
+          <CardDescription>Gunakan kolom wajib: soal, subtopik, pilihan_a sampai pilihan_e, jawaban_benar, pembahasan, kategori. Template contoh sudah memuat beberapa subtopik TWK, TIU, dan TKP.</CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="outline" onClick={downloadTemplate}>
@@ -121,12 +184,12 @@ export default function UploadQuestionsPage() {
         <CardContent className="space-y-4">
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-border p-10 text-center hover:border-primary/40">
             <FileSpreadsheet className="h-10 w-10 text-primary" />
-            <p className="mt-3 font-medium">{file ? file.name : "Pilih file .xlsx atau .xls"}</p>
-            <p className="text-sm text-muted-foreground">Mendukung ribuan baris soal.</p>
+            <p className="mt-3 font-medium">{file ? file.name : "Pilih file .csv, .xlsx, atau .xls"}</p>
+            <p className="text-sm text-muted-foreground">Template download berbentuk CSV, dan upload mendukung CSV maupun Excel.</p>
             <input
               type="file"
               className="hidden"
-              accept=".xlsx,.xls"
+              accept=".csv,.xlsx,.xls"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
@@ -165,6 +228,7 @@ export default function UploadQuestionsPage() {
                   <th className="px-4 py-3">Row</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Kategori</th>
+                  <th className="px-4 py-3">Subtopik</th>
                   <th className="px-4 py-3">Soal</th>
                   <th className="px-4 py-3">Jawaban</th>
                   <th className="px-4 py-3">Error</th>
@@ -182,6 +246,7 @@ export default function UploadQuestionsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">{row.kategori}</td>
+                    <td className="px-4 py-3">{row.subtopik}</td>
                     <td className="px-4 py-3">{row.soal}</td>
                     <td className="px-4 py-3">{row.jawaban_benar}</td>
                     <td className="px-4 py-3 text-destructive">{row.errors.join(", ")}</td>

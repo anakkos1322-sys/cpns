@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client"
 import { getCurrentUser } from "@/lib/auth"
 import { PASSING_GRADES } from "@/lib/constants"
+import { sanitizeQuestionBody } from "@/lib/helpers/question"
 import { prisma } from "@/lib/prisma"
 
 async function authorizeResultAccess(resultId: string) {
@@ -113,7 +114,7 @@ export async function getResultExplanations(resultId: string) {
         orderIndex: sessionQuestion.orderIndex,
         questionId: sessionQuestion.questionId,
         category: sessionQuestion.question.category.code,
-        body: sessionQuestion.question.body,
+        body: sanitizeQuestionBody(sessionQuestion.question.body),
         explanation: sessionQuestion.question.explanation,
         selectedOptionId: answer?.selectedOptionId ?? null,
         correctOptionId: answer?.correctOptionId ?? null,
@@ -126,5 +127,50 @@ export async function getResultExplanations(resultId: string) {
         })),
       }
     }),
+  }
+}
+
+export async function getCurrentUserResultHistory(input?: {
+  page?: number
+  pageSize?: number
+}) {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw new Error("Silakan login terlebih dahulu.")
+  }
+
+  const page = Math.max(1, input?.page ?? 1)
+  const pageSize = Math.min(50, Math.max(1, input?.pageSize ?? 10))
+
+  const [items, total] = await prisma.$transaction([
+    prisma.result.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        scoreTWK: true,
+        scoreTIU: true,
+        scoreTKP: true,
+        totalScore: true,
+        passed: true,
+        createdAt: true,
+      },
+    }),
+    prisma.result.count({
+      where: { userId: user.id },
+    }),
+  ])
+
+  return {
+    items: items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
   }
 }

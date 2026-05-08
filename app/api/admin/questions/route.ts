@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth"
 import { ok, fromError } from "@/lib/http"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 export async function GET(request: Request) {
   try {
@@ -11,8 +12,13 @@ export async function GET(request: Request) {
     const query = searchParams.get("query") ?? ""
     const category = searchParams.get("category") ?? ""
 
-    const where = {
-      body: query ? { contains: query, mode: "insensitive" as const } : undefined,
+    const where: Prisma.QuestionWhereInput = {
+      OR: query
+        ? [
+            { body: { contains: query, mode: "insensitive" } },
+            { subtopic: { contains: query, mode: "insensitive" } },
+          ]
+        : undefined,
       category: category
         ? {
             code: category as "TWK" | "TIU" | "TKP",

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 export const excelRowSchema = z.object({
   soal: z.string().min(1, "Kolom soal wajib diisi."),
+  subtopik: z.string().min(1, "Kolom subtopik wajib diisi."),
   pilihan_a: z.string().min(1, "pilihan_a wajib diisi."),
   pilihan_b: z.string().min(1, "pilihan_b wajib diisi."),
   pilihan_c: z.string().min(1, "pilihan_c wajib diisi."),
