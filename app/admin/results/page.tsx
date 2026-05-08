@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -23,6 +24,7 @@ export default function AdminResultsPage() {
   const [items, setItems] = useState<ResultItem[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -34,6 +36,37 @@ export default function AdminResultsPage() {
 
     void run()
   }, [page])
+
+  async function handleDelete(item: ResultItem) {
+    const confirmed = window.confirm(
+      `Hapus hasil tes milik ${item.user.name} pada ${new Date(item.createdAt).toLocaleString("id-ID")}?`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingId(item.id)
+
+    try {
+      const response = await fetch("/api/admin/results", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
+      })
+
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error)
+      }
+
+      setItems((current) => current.filter((result) => result.id !== item.id))
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Gagal menghapus hasil tes.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -70,9 +103,20 @@ export default function AdminResultsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/results/${item.id}`}>Detail</Link>
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/results/${item.id}`}>Detail</Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={deletingId === item.id}
+                        onClick={() => void handleDelete(item)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {deletingId === item.id ? "Menghapus..." : "Hapus"}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
